@@ -1,8 +1,7 @@
-from openai import AsyncOpenAI, OpenAI
-from openai.types.responses import ResponseInputParam
-
 from commons.models.message import Message
 from commons.models.role import Role
+from openai import AsyncOpenAI, OpenAI
+from openai.types.responses import ResponseInputParam
 from t1_llm_api.openai.base import BaseOpenAIClient
 
 
@@ -20,7 +19,9 @@ class OpenAIResponsesClient(BaseOpenAIClient):
         Inherits all other attributes from BaseOpenAIClient.
     """
 
-    def __init__(self, endpoint: str, model_name: str, system_prompt: str, api_key: str):
+    def __init__(
+        self, endpoint: str, model_name: str, system_prompt: str, api_key: str
+    ):
         """
         Initialize the OpenAI Responses client with SDK.
 
@@ -52,7 +53,8 @@ class OpenAIResponsesClient(BaseOpenAIClient):
             The response is printed to stdout before being returned.
         """
         input_messages: ResponseInputParam = [
-            message.to_dict() for message in messages  # type: ignore
+            message.to_dict()
+            for message in messages  # type: ignore
         ]
 
         response = self._client.responses.create(
@@ -84,21 +86,10 @@ class OpenAIResponsesClient(BaseOpenAIClient):
             Uses the Responses API streaming format with event types.
             Listens for 'response.output_text.delta' events to build the response.
         """
-        input_messages: ResponseInputParam = [
-            message.to_dict() for message in messages  # type: ignore
-        ]
-
-        stream = await self._async_client.responses.create(
-            model=self._model_name,
-            instructions=self._system_prompt,
-            input=input_messages,
-            stream=True,
-        )
-
-        chunks = []
-        async for event in stream:
-            if event.type == "response.output_text.delta":
-                print(event.delta, end="", flush=True)
-                chunks.append(event.delta)
-
-        return Message(role=Role.ASSISTANT, content="".join(chunks))
+        # TODO:
+        # - Prepare input messages
+        # - Call client with streaming mode
+        # - Handle stream with events
+        # - Print response to console
+        # - Return ASSISTANT message
+        raise NotImplementedError
