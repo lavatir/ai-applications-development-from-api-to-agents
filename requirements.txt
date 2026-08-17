@@ -16,8 +16,8 @@ langchain-openai==1.1.10
 langchain-chroma==1.1.0
 faiss-cpu==1.13.2
 psycopg2-binary>=2.9.11
-presidio-analyzer==2.2.360
-presidio_anonymizer==2.2.360
+presidio-analyzer==2.2.364
+presidio_anonymizer==2.2.364
 pydantic==2.12.5
 pyyaml>=6.0
 python-jose==3.5.0
