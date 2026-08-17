@@ -86,10 +86,22 @@ class OpenAIResponsesClient(BaseOpenAIClient):
             Uses the Responses API streaming format with event types.
             Listens for 'response.output_text.delta' events to build the response.
         """
-        # TODO:
-        # - Prepare input messages
-        # - Call client with streaming mode
-        # - Handle stream with events
-        # - Print response to console
-        # - Return ASSISTANT message
-        raise NotImplementedError
+        input_messages: ResponseInputParam = [
+            message.to_dict()
+            for message in messages  # type: ignore
+        ]
+
+        stream = await self._async_client.responses.create(
+            model=self._model_name,
+            instructions=self._system_prompt,
+            input=input_messages,
+            stream=True,
+        )
+
+        chunks = []
+        async for event in stream:
+            if event.type == "response.output_text.delta":
+                print(event.delta, end="", flush=True)
+                chunks.append(event.delta)
+
+        return Message(role=Role.ASSISTANT, content="".join(chunks))
