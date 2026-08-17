@@ -18,7 +18,9 @@ class GeminiAIClient(AIClient):
         Inherits all other attributes from AIClient.
     """
 
-    def __init__(self, endpoint: str, model_name: str, api_key: str, system_prompt: str):
+    def __init__(
+        self, endpoint: str, model_name: str, api_key: str, system_prompt: str
+    ):
         """
         Initialize the Gemini client with SDK.
 
@@ -28,10 +30,9 @@ class GeminiAIClient(AIClient):
             api_key (str): The Google API key for authentication.
             system_prompt (str): The system instruction to guide the model's behavior.
         """
-        #TODO:
-        # Call to __init__ of super class
-        # Add genai.Client https://ai.google.dev/gemini-api/docs/text-generation#python_4
-        raise NotImplementedError
+        super().__init__(endpoint, model_name, api_key, system_prompt)
+
+        self._client = genai.Client(api_key=api_key)
 
     def response(self, messages: list[Message], **kwargs) -> Message:
         """
@@ -48,12 +49,18 @@ class GeminiAIClient(AIClient):
             Gemini uses 'system_instruction' parameter for system-level guidance.
             The response is printed to stdout before being returned.
         """
-        #TODO:
-        # - Add System prompt
-        # - Call client
-        # - Print response to console
-        # - Return ASSISTANT message
-        raise NotImplementedError
+        contents = [self._to_content(message) for message in messages]
+
+        response = self._client.models.generate_content(
+            model=self._model_name,
+            contents=contents,
+            config=types.GenerateContentConfig(system_instruction=self._system_prompt),
+        )
+
+        content = response.text or ""
+        print(content)
+
+        return Message(role=Role.ASSISTANT, content=content)
 
     async def stream_response(self, messages: list[Message], **kwargs) -> Message:
         """
@@ -73,10 +80,25 @@ class GeminiAIClient(AIClient):
             Uses the async streaming interface provided by the Gemini SDK.
             Each chunk's text is printed to stdout as it arrives.
         """
-        #TODO:
-        # - Add System prompt
-        # - Call client with streaming mode
-        # - Handle stream with chunks
-        # - Print response to console
-        # - Return ASSISTANT message
-        raise NotImplementedError
+        contents = [self._to_content(message) for message in messages]
+
+        stream = await self._client.aio.models.generate_content_stream(
+            model=self._model_name,
+            contents=contents,
+            config=types.GenerateContentConfig(system_instruction=self._system_prompt),
+        )
+
+        chunks = []
+        async for chunk in stream:
+            if chunk.text:
+                print(chunk.text, end="", flush=True)
+                chunks.append(chunk.text)
+
+        return Message(role=Role.ASSISTANT, content="".join(chunks))
+
+    @staticmethod
+    def _to_content(message: Message) -> types.Content:
+        role = "model" if message.role == Role.ASSISTANT else "user"
+        return types.Content(
+            role=role, parts=[types.Part.from_text(text=message.content)]
+        )
