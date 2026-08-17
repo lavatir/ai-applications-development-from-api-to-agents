@@ -1,4 +1,5 @@
 import json
+
 import aiohttp
 import requests
 
@@ -35,15 +36,37 @@ class CustomOpenAIResponsesClient(BaseOpenAIClient):
             Uses the Responses API format with 'instructions' and 'input' parameters.
             The response is printed to stdout before being returned.
         """
-        #TODO:
-        # https://developers.openai.com/api/docs/guides/text?lang=curl
-        # - Prepare headers with authorization and content type
-        # - Prepare input messages
-        # - Execute post request to AI API (use `requests`)
-        # - Parse response
-        # - Print response to console
-        # - Return ASSISTANT message
-        raise NotImplementedError
+        headers = {
+            "Authorization": self._api_key,
+            "Content-Type": "application/json",
+        }
+
+        request_data = {
+            "model": self._model_name,
+            "instructions": self._system_prompt,
+            "input": [message.to_dict() for message in messages],
+        }
+
+        response = requests.post(self._endpoint, headers=headers, json=request_data)
+        response.raise_for_status()
+
+        data = response.json()
+        output = data.get("output", [])
+        content_parts = [
+            content["text"]
+            for item in output
+            if item.get("type") == "message"
+            for content in item.get("content", [])
+            if content.get("type") == "output_text"
+        ]
+
+        if not content_parts:
+            raise ValueError("API response contains no output text")
+
+        content = "".join(content_parts)
+        print(content)
+
+        return Message(role=Role.ASSISTANT, content=content)
 
     async def stream_response(self, messages: list[Message], **kwargs) -> Message:
         """
@@ -64,13 +87,39 @@ class CustomOpenAIResponsesClient(BaseOpenAIClient):
             Listens for 'response.output_text.delta' events to build the response.
             Each line with "event: " specifies the event type, followed by "data: " with the payload.
         """
-        #TODO:
-        # https://developers.openai.com/api/docs/guides/text?lang=curl
-        # - Prepare headers with authorization and content type
-        # - Prepare input messages
-        # - Execute post request to AI API (use `aiohttp`)
-        # - Handle stream with events
-        # - Parse response
-        # - Print chunks to console
-        # - Return ASSISTANT message
-        raise NotImplementedError
+        headers = {
+            "Authorization": self._api_key,
+            "Content-Type": "application/json",
+        }
+
+        request_data = {
+            "model": self._model_name,
+            "instructions": self._system_prompt,
+            "input": [message.to_dict() for message in messages],
+            "stream": True,
+        }
+
+        chunks = []
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                self._endpoint, headers=headers, json=request_data
+            ) as response,
+        ):
+            response.raise_for_status()
+
+            event_type = None
+            async for line in response.content:
+                decoded = line.decode("utf-8").strip()
+                if not decoded:
+                    continue
+                if decoded.startswith("event: "):
+                    event_type = decoded[len("event: ") :]
+                elif decoded.startswith("data: "):
+                    data = json.loads(decoded[len("data: ") :])
+                    if event_type == "response.output_text.delta":
+                        delta = data.get("delta", "")
+                        print(delta, end="", flush=True)
+                        chunks.append(delta)
+
+        return Message(role=Role.ASSISTANT, content="".join(chunks))
