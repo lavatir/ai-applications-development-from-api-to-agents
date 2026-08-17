@@ -1,4 +1,6 @@
-from t2_llms_output_tuning._clients.openai_chat_completions_client import OpenAIChatCompletionsClient
+from t2_llms_output_tuning._clients.openai_chat_completions_client import (
+    OpenAIChatCompletionsClient,
+)
 from t2_llms_output_tuning._main import run
 
 # TODO 1: n — number of completions to generate per request. Default: 1
@@ -56,9 +58,8 @@ from t2_llms_output_tuning._main import run
 #  Try: reasoning_effort="low" vs reasoning_effort="high"
 
 run(
-    client=OpenAIChatCompletionsClient(model_name='gpt-5.2'),
-    print_request=True, # Switch to False if you do not want to see the request in console
-    print_only_content=False, # Switch to True if you want to see only content from response
-
-
+    client=OpenAIChatCompletionsClient(model_name="gpt-5.2"),
+    print_request=True,  # Switch to False if you do not want to see the request in console
+    print_only_content=False,  # Switch to True if you want to see only content from response
+    reasoning_effort="high",
 )
