@@ -22,4 +22,4 @@ anthropic_custom_client = CustomAnthropicAIClient(
     system_prompt=DEFAULT_SYSTEM_PROMPT,
 )
 
-asyncio.run(start(True, anthropic_client))
+asyncio.run(start(True, anthropic_custom_client))
