@@ -1,4 +1,5 @@
 import json
+
 import aiohttp
 import requests
 
@@ -36,15 +37,31 @@ class CustomGeminiAIClient(AIClient):
             Uses 'x-goog-api-key' header for authentication.
             Response candidates contain content parts that are concatenated.
         """
-        #TODO:
-        # https://ai.google.dev/gemini-api/docs/text-generation
-        # - Prepare headers with api key and content type
-        # - Add System prompt
-        # - Execute post request to AI API (use `requests`)
-        # - Parse response
-        # - Print response to console
-        # - Return ASSISTANT message
-        raise NotImplementedError
+        headers = {
+            "x-goog-api-key": self._api_key,
+            "Content-Type": "application/json",
+        }
+
+        request_data = {
+            "system_instruction": {"parts": [{"text": self._system_prompt}]},
+            "contents": [self._to_content(message) for message in messages],
+        }
+
+        url = f"{self._endpoint}/{self._model_name}:generateContent"
+        response = requests.post(url, headers=headers, json=request_data)
+        response.raise_for_status()
+
+        data = response.json()
+        candidates = data.get("candidates", [])
+
+        if not candidates:
+            raise ValueError("API response contains no candidates")
+
+        parts = candidates[0].get("content", {}).get("parts", [])
+        content = "".join(part.get("text", "") for part in parts)
+        print(content)
+
+        return Message(role=Role.ASSISTANT, content=content)
 
     async def stream_response(self, messages: list[Message], **kwargs) -> Message:
         """
@@ -66,13 +83,40 @@ class CustomGeminiAIClient(AIClient):
             Each SSE chunk contains candidates with content parts.
             Each text chunk is printed to stdout as it arrives.
         """
-        #TODO:
-        # https://ai.google.dev/gemini-api/docs/text-generation
-        # - Prepare headers with api key and content type
-        # - Add System prompt
-        # - Execute post request to AI API (use `aiohttp`)
-        # - Handle stream with chunks
-        # - Parse response
-        # - Print chunks to console
-        # - Return ASSISTANT message
-        raise NotImplementedError
+        headers = {
+            "x-goog-api-key": self._api_key,
+            "Content-Type": "application/json",
+        }
+
+        request_data = {
+            "system_instruction": {"parts": [{"text": self._system_prompt}]},
+            "contents": [self._to_content(message) for message in messages],
+        }
+
+        url = f"{self._endpoint}/{self._model_name}:streamGenerateContent?alt=sse"
+
+        chunks = []
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(url, headers=headers, json=request_data) as response,
+        ):
+            response.raise_for_status()
+
+            async for line in response.content:
+                decoded = line.decode("utf-8").strip()
+                if not decoded.startswith("data: "):
+                    continue
+                data = json.loads(decoded[len("data: ") :])
+                for candidate in data.get("candidates", []):
+                    for part in candidate.get("content", {}).get("parts", []):
+                        text = part.get("text", "")
+                        if text:
+                            print(text, end="", flush=True)
+                            chunks.append(text)
+
+        return Message(role=Role.ASSISTANT, content="".join(chunks))
+
+    @staticmethod
+    def _to_content(message: Message) -> dict:
+        role = "model" if message.role == Role.ASSISTANT else "user"
+        return {"role": role, "parts": [{"text": message.content}]}

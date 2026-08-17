@@ -18,4 +18,4 @@ gemini_custom_client = CustomGeminiAIClient(
     system_prompt=DEFAULT_SYSTEM_PROMPT,
 )
 
-asyncio.run(start(True, gemini_client))
+asyncio.run(start(True, gemini_custom_client))
