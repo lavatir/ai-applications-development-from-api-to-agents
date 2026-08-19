@@ -1,9 +1,7 @@
 import base64
-from datetime import datetime
 
 from commons.constants import OPENAI_HOST
 from t3_content_generation._openai_client import OpenAIClientT3
-
 
 # https://developers.openai.com/api/reference/resources/images/methods/generate
 # ---
@@ -25,7 +23,7 @@ from t3_content_generation._openai_client import OpenAIClientT3
 #   ]
 # }
 
-#TODO:
+# TODO:
 # You need to create some images with `gpt-image-2` model:
 #   - Generate an image with 'Smiling catdog'
 #   - Decode and save it locally
@@ -34,3 +32,19 @@ from t3_content_generation._openai_client import OpenAIClientT3
 #   - Use OpenAIClientT3 to connect to OpenAI API
 #   - Use /v1/images/generations endpoint
 #   - The image will be returned in base64 format
+
+endpoint = f"{OPENAI_HOST}/v1/images/generations"
+
+client = OpenAIClientT3(endpoint)
+
+response = client.call(
+    print_request=True,
+    print_response=True,
+    model="gpt-image-2",
+    prompt="smiling catdog",
+    size="1024x1024",
+    quality="high",
+)
+
+with open("catdog.png", "wb") as f:
+    f.write(base64.b64decode(response["data"][0]["b64_json"]))
