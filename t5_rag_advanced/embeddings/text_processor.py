@@ -1,3 +1,4 @@
+import os
 from enum import StrEnum
 
 import psycopg2
@@ -22,34 +23,82 @@ class TextProcessor:
     def _get_connection(self):
         """Get database connection"""
         return psycopg2.connect(
-            host=self.db_config['host'],
-            port=self.db_config['port'],
-            database=self.db_config['database'],
-            user=self.db_config['user'],
-            password=self.db_config['password']
+            host=self.db_config["host"],
+            port=self.db_config["port"],
+            database=self.db_config["database"],
+            user=self.db_config["user"],
+            password=self.db_config["password"],
         )
 
-    #TODO:
-    # provide method `process_text_file` that will:
-    #   - apply file name, chunk size, overlap, dimensions and bool of the table should be truncated
-    #   - truncate table with vectors if needed
-    #   - load content from file and generate chunks (in `utils.text` present `chunk_text` that will help do that)
-    #   - generate embeddings from chunks
-    #   - save (insert) embeddings and chunks to DB
-    #       hint 1: embeddings should be saved as string list
-    #       hint 2: embeddings string list should be casted to vector ({embeddings}::vector)
+    def process_text_file(
+        self,
+        file_name: str,
+        chunk_size: int,
+        overlap: int,
+        dimensions: int,
+        truncate: bool = False,
+    ) -> None:
+        """Load a text file, chunk it, embed the chunks, and store them in the DB"""
+        if truncate:
+            self._truncate_table()
 
+        with open(file_name, "r", encoding="utf-8") as f:
+            content = f.read()
 
-    #TODO:
-    # provide method `search` that will:
-    #   - apply search mode, user request, top k for search, min score threshold and dimensions
-    #   - generate embeddings from user request
-    #   - search in DB relevant context
-    #     hint 1: to search it in DB you need to create just regular select query
-    #     hint 2: Euclidean distance `<->`, Cosine distance `<=>`
-    #     hint 3: You need to extract `text` from `vectors` table
-    #     hint 4: You need to filter distance in WHERE clause
-    #     hint 5: To get top k use `limit`
+        chunks = chunk_text(content, chunk_size, overlap)
+        embeddings = self.embeddings_client.get_embeddings(chunks, dimensions)
+
+        document_name = os.path.basename(file_name)
+        for index, chunk in enumerate(chunks):
+            self._save_chunk(document_name, chunk, embeddings[index])
+
+    def _truncate_table(self) -> None:
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.execute("TRUNCATE TABLE vectors")
+            conn.commit()
+
+    def _save_chunk(
+        self, document_name: str, text: str, embedding: list[float]
+    ) -> None:
+        embedding_str = str(embedding)
+
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO vectors (document_name, text, embedding) VALUES (%s, %s, %s::vector)",
+                (document_name, text, embedding_str),
+            )
+            conn.commit()
+
+    def search(
+        self,
+        mode: SearchMode,
+        query: str,
+        top_k: int,
+        min_score: float,
+        dimensions: int,
+    ) -> list[str]:
+        """Embed the query and retrieve the top_k closest chunks within the min_score threshold"""
+        embeddings = self.embeddings_client.get_embeddings(query, dimensions)
+        query_embedding = str(embeddings[0])
+
+        operator = "<->" if mode == SearchMode.EUCLIDIAN_DISTANCE else "<=>"
+
+        sql = f"""
+            SELECT text, embedding {operator} %s::vector AS distance
+            FROM vectors
+            WHERE embedding {operator} %s::vector <= %s
+            ORDER BY distance
+            LIMIT %s
+        """
+
+        with (
+            self._get_connection() as conn,
+            conn.cursor(cursor_factory=RealDictCursor) as cur,
+        ):
+            cur.execute(sql, (query_embedding, query_embedding, min_score, top_k))
+            rows = cur.fetchall()
+
+        return [row["text"] for row in rows]
 
 
 # SELECT text, embedding <->  '[0.23, -0.45, 0.67, ..., 0.12]'::vector AS distance
