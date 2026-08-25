@@ -12,7 +12,13 @@ class BaseAgent(ABC):
     registry of callable tools.
     """
 
-    def __init__(self, model: str, api_key: str, tools: list[BaseTool] | None = None, system_prompt: str | None = None):
+    def __init__(
+        self,
+        model: str,
+        api_key: str,
+        tools: list[BaseTool] | None = None,
+        system_prompt: str | None = None,
+    ):
         """Initialise the agent.
 
         Args:
@@ -28,14 +34,18 @@ class BaseAgent(ABC):
         Raises:
             ValueError: If ``api_key`` is empty or blank.
         """
-        #TODO:
-        # 1. Validate `api_key` — raise ValueError("API key cannot be null or empty") if it is empty or blank
-        # 2. Assign `self._model`, `self._api_key`, `self._system_prompt`
-        # 3. Build `self._tools_dict` as {tool.name: tool} for each tool in `tools`
-        raise NotImplementedError()
+        if not api_key or not api_key.strip():
+            raise ValueError("API key cannot be null or empty")
+
+        self._model = model
+        self._api_key = api_key
+        self._system_prompt = system_prompt
+        self._tools_dict = {tool.name: tool for tool in (tools or [])}
 
     @abstractmethod
-    def get_response(self, messages: list[Message], print_request: bool = True) -> Message:
+    def get_response(
+        self, messages: list[Message], print_request: bool = True
+    ) -> Message:
         """Send the conversation to the LLM and return its reply.
 
         Tool calls are handled transparently: if the model requests one or more

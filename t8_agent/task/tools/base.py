@@ -29,7 +29,6 @@ class BaseTool(ABC):
             Return an informative error message rather than raising, so the
             model can react gracefully.
         """
-        pass
 
     @property
     @abstractmethod
@@ -39,7 +38,6 @@ class BaseTool(ABC):
         Used as the function name in the tool schema sent to the model and as
         the key for tool lookup when the model requests a call.
         """
-        pass
 
     @property
     @abstractmethod
@@ -50,7 +48,6 @@ class BaseTool(ABC):
         be specific enough to distinguish this tool from others without being
         overly verbose.
         """
-        pass
 
     @property
     @abstractmethod
@@ -70,7 +67,6 @@ class BaseTool(ABC):
         This schema is embedded verbatim into both ``openai_schema`` (as
         ``parameters``) and ``anthropic_schema`` (as ``input_schema``).
         """
-        pass
 
     @property
     def openai_schema(self) -> dict[str, Any]:
@@ -81,9 +77,14 @@ class BaseTool(ABC):
         expects in the ``tools`` array.
         https://developers.openai.com/api/docs/guides/function-calling#defining-functions
         """
-        #TODO:
-        # Provide dict with tool configuration in according to OpenAI Spec
-        raise NotImplementedError
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.input_schema,
+            },
+        }
 
     @property
     def anthropic_schema(self) -> dict[str, Any]:
@@ -94,6 +95,8 @@ class BaseTool(ABC):
         ``tools`` array (no ``"type": "function"`` wrapper).
         https://platform.claude.com/docs/en/api/messages/create#create.tools
         """
-        #TODO:
-        # Provide dict with tool configuration in according to Anthropic Spec
-        raise NotImplementedError
+        return {
+            "name": self.name,
+            "description": self.description,
+            "input_schema": self.input_schema,
+        }
