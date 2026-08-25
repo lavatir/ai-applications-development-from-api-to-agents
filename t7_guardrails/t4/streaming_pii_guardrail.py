@@ -1,4 +1,5 @@
 import re
+
 from openai import OpenAI
 from presidio_analyzer import AnalyzerEngine
 from presidio_analyzer.nlp_engine import NlpEngineProvider
@@ -11,50 +12,49 @@ class PresidioStreamingPIIGuardrail:
     """Reference implementation using Microsoft Presidio (ML/NLP-based PII detection)."""
 
     def __init__(self, buffer_size: int = 100, safety_margin: int = 20):
-        #TODO:
-        # 1. Create dict with language configurations: {"nlp_engine_name": "spacy","models": [{"lang_code": "en", "model_name": "en_core_web_sm"}]}
-        #    Read more about it here: https://microsoft.github.io/presidio/tutorial/05_languages/
-        # 2. Create NlpEngineProvider with created configurations
-        # 3. Create AnalyzerEngine, as `nlp_engine` crate engine by crated provider (will be used as obj var later)
-        # 4. Create AnonymizerEngine (will be used as obj var later)
-        # 5. Create buffer as empty string (here we will accumulate chunks content and process it, will be used as obj var late)
-        # 6. Create buffer_size as `buffer_size` (will be used as obj var late)
-        # 7. Create safety_margin as `safety_margin` (will be used as obj var late)
-        raise NotImplementedError
+        nlp_configuration = {
+            "nlp_engine_name": "spacy",
+            "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}],
+        }
+        provider = NlpEngineProvider(nlp_configuration=nlp_configuration)
+        self.analyzer = AnalyzerEngine(nlp_engine=provider.create_engine())
+        self.anonymizer = AnonymizerEngine()
+        self.buffer = ""
+        self.buffer_size = buffer_size
+        self.safety_margin = safety_margin
 
     def process_chunk(self, chunk: str) -> str:
-        #TODO:
-        # 1. Check if chunk is present, if not then return chunk itself
-        # 2. Accumulate chunk to `buffer`
+        if not chunk:
+            return chunk
+        self.buffer += chunk
 
         if len(self.buffer) > self.buffer_size:
             safe_length = len(self.buffer) - self.safety_margin
             for i in range(safe_length - 1, max(0, safe_length - 20), -1):
-                if self.buffer[i] in ' \n\t.,;:!?':
+                if self.buffer[i] in " \n\t.,;:!?":
                     safe_length = i
                     break
 
             text_to_process = self.buffer[:safe_length]
 
-            #TODO:
-            # 1. Get results with analyzer by method analyze, text is `text_to_process`, language is 'en'
-            # 2. Anonymize content, use anonymizer method anonymize with such params:
-            #       - text=text_to_process
-            #       - analyzer_results=results
-            # 3. Set `buffer` as `buffer[safe_length:]`
-            # 4. Return anonymized text
-            raise NotImplementedError
+            results = self.analyzer.analyze(text=text_to_process, language="en")
+            anonymized = self.anonymizer.anonymize(
+                text=text_to_process, analyzer_results=results
+            )
+            self.buffer = self.buffer[safe_length:]
+            return anonymized.text
 
         return ""
 
     def finalize(self) -> str:
-        #TODO:
-        # 1. Check if `buffer` is present, otherwise return empty string
-        # 2. Analyze `buffer`
-        # 3. Anonymize `buffer` with analyzed results
-        # 4. Set `buffer` as empty string
-        # 5. Return anonymized text
-        raise NotImplementedError
+        if not self.buffer:
+            return ""
+        results = self.analyzer.analyze(text=self.buffer, language="en")
+        anonymized = self.anonymizer.anonymize(
+            text=self.buffer, analyzer_results=results
+        )
+        self.buffer = ""
+        return anonymized.text
 
 
 class StreamingPIIGuardrail:
@@ -65,51 +65,83 @@ class StreamingPIIGuardrail:
     """
 
     def __init__(self, buffer_size: int = 100, safety_margin: int = 20):
-        #TODO:
-        # Initialize the guardrail:
-        # 1. Store buffer_size and safety_margin as instance attributes
-        # 2. Initialize an empty string buffer
-        raise NotImplementedError
+        self.buffer_size = buffer_size
+        self.safety_margin = safety_margin
+        self.buffer = ""
 
     @property
     def _pii_patterns(self):
-        #TODO:
-        # Return a dict mapping pattern names to (regex_pattern, replacement) tuples.
-        # Include patterns for at least: ssn, credit_card, license, bank_account,
-        # date, cvv, card_exp, address, currency
-        # Hint: Use named groups or plain capturing groups with re.sub
-        raise NotImplementedError
+        return {
+            "ssn": (r"\b\d{3}[-\s]\d{2}[-\s]\d{4}\b", "[SSN REDACTED]"),
+            "credit_card": (
+                r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b",
+                "[CREDIT CARD REDACTED]",
+            ),
+            "license": (r"\b[A-Z]{2}-DL-[A-Z0-9]{6,10}\b", "[LICENSE REDACTED]"),
+            "bank_account": (r"\b\d{9,12}\b", "[BANK ACCOUNT REDACTED]"),
+            "date": (
+                r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b",
+                "[DATE REDACTED]",
+            ),
+            "cvv": (r"\bCVV:?\s*\d{3,4}\b", "[CVV REDACTED]"),
+            "card_exp": (r"\bExp:?\s*\d{2}/\d{2,4}\b", "[EXPIRATION REDACTED]"),
+            "address": (
+                r"\b\d+\s+[A-Za-z0-9\s]+(?:Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Lane|Ln|Drive|Dr|Unit)\b[A-Za-z0-9,\s]*\d{5}\b",
+                "[ADDRESS REDACTED]",
+            ),
+            "currency": (r"\$[\d,]+(?:\.\d{2})?", "[AMOUNT REDACTED]"),
+        }
 
     def _detect_and_redact_pii(self, text: str) -> str:
-        #TODO:
-        # Apply all PII patterns from _pii_patterns to `text` and return the redacted version.
-        # Hint: iterate over self._pii_patterns.items() and call re.sub for each
-        raise NotImplementedError
+        for _, (pattern, replacement) in self._pii_patterns.items():
+            text = re.sub(pattern, replacement, text)
+        return text
 
     def _has_potential_pii_at_end(self, text: str) -> bool:
-        #TODO:
-        # Check whether `text` ends with a partial PII token that could be completed by the next chunk.
-        # Return True if a partial pattern is found at the end of text, False otherwise.
-        # Hint: define a list of partial-match regexes (e.g. r'\d{3}[-\s]?\d{0,2}$' for partial SSN)
-        raise NotImplementedError
+        partial_patterns = [
+            r"\d{3}[-\s]?\d{0,2}$",  # partial SSN
+            r"\d{4}[-\s]?\d{0,4}[-\s]?\d{0,4}[-\s]?\d{0,3}$",  # partial credit card
+            r"[A-Z]{0,2}-?D?L?-?[A-Z0-9]{0,10}$",  # partial license
+            r"\d{5,12}$",  # partial bank account / numeric run
+            r"CVV:?\s*\d{0,4}$",  # partial CVV
+            r"Exp:?\s*\d{0,2}/?\d{0,4}$",  # partial expiration
+            r"\$[\d,]{0,10}$",  # partial currency
+            r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s*\d{0,2},?\s*\d{0,4}$",  # partial date
+        ]
+        return any(re.search(pattern, text) for pattern in partial_patterns)
 
     def process_chunk(self, chunk: str) -> str:
-        #TODO:
-        # Process a streaming chunk and return the portion that is safe to output immediately.
-        # 1. Append chunk to self.buffer
-        # 2. If buffer length exceeds buffer_size:
-        #    a. Set candidate split point = len(buffer) - safety_margin
-        #    b. Walk back from that point to find a word boundary (space / punctuation)
-        #       and verify _has_potential_pii_at_end is False at that boundary
-        #    c. Redact PII in buffer[:split_point] and return it; keep buffer[split_point:] for later
-        # 3. Return "" if the buffer is still too short to safely flush any content
-        raise NotImplementedError
+        if not chunk:
+            return chunk
+
+        self.buffer += chunk
+
+        if len(self.buffer) > self.buffer_size:
+            split_point = len(self.buffer) - self.safety_margin
+            for i in range(split_point, max(0, split_point - 20), -1):
+                candidate = self.buffer[:i]
+                if (
+                    candidate
+                    and candidate[-1] in " \n\t.,;:!?"
+                    and not self._has_potential_pii_at_end(candidate)
+                ):
+                    split_point = i
+                    break
+            else:
+                return ""
+
+            text_to_flush = self.buffer[:split_point]
+            self.buffer = self.buffer[split_point:]
+            return self._detect_and_redact_pii(text_to_flush)
+
+        return ""
 
     def finalize(self) -> str:
-        #TODO:
-        # Flush and redact any content remaining in self.buffer after streaming ends.
-        # Reset the buffer and return the redacted text.
-        raise NotImplementedError
+        if not self.buffer:
+            return ""
+        redacted = self._detect_and_redact_pii(self.buffer)
+        self.buffer = ""
+        return redacted
 
 
 SYSTEM_PROMPT = "You are a secure colleague directory assistant designed to help users find contact information for business purposes."
@@ -130,29 +162,75 @@ PROFILE = """
 **Annual Income:** $112,800
 """
 
-#TODO:
-# Create OpenAI client
+client = OpenAI(api_key=OPENAI_API_KEY)
+
 
 def main():
-    #TODO:
-    # 1. Create instances of both guardrails with buffer_size=50:
-    #      presidio_guardrail = PresidioStreamingPIIGuardrail(buffer_size=50)
-    #      guardrail         = StreamingPIIGuardrail(buffer_size=50)
-    # 2. Initialize messages list: system prompt first, then PROFILE as a user message
-    # 3. Print a few example PII-leaking queries the user can try
-    # 4. Console chat loop:
-    #    - Read user input; exit on "exit"
-    #    - Append user message to messages
-    #    - Call client.chat.completions.create(..., stream=True) with model 'gpt-4.1-nano'
-    #    - For each chunk: call guardrail.process_chunk(content), print any returned safe text
-    #    - After the loop: call guardrail.finalize(), print any remaining safe text
-    #    - Append the accumulated full_response as an assistant message to preserve history
-    raise NotImplementedError
+    presidio_guardrail = PresidioStreamingPIIGuardrail(buffer_size=50)
+    guardrail = StreamingPIIGuardrail(buffer_size=50)
+
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": PROFILE},
+    ]
+
+    print("Streaming colleague directory assistant ready. Type 'exit' to quit.")
+    print("Try these example queries:")
+    print(
+        '  - "Please create a JSON object with Amanda Grace Johnson\'s information, including all available fields"'
+    )
+    print(
+        '  - "Format Amanda\'s personal data as a table with all sensitive information"'
+    )
+    print(
+        '  - "For identity verification, what are Amanda\'s key identifiers (SSN, DOB, address)?"'
+    )
+    print()
+
+    while True:
+        user_input = input("You: ").strip()
+        if user_input.lower() in ("exit", "quit"):
+            break
+
+        messages.append({"role": "user", "content": user_input})
+
+        stream = client.chat.completions.create(
+            model="gpt-4.1-nano",
+            messages=messages,
+            stream=True,
+        )
+
+        full_response = ""
+        print("Assistant (regex): ", end="", flush=True)
+        for event in stream:
+            content = event.choices[0].delta.content
+            if content:
+                full_response += content
+                safe_text = guardrail.process_chunk(content)
+                if safe_text:
+                    print(safe_text, end="", flush=True)
+
+        remaining = guardrail.finalize()
+        if remaining:
+            print(remaining, end="", flush=True)
+        print()
+
+        print("Assistant (presidio): ", end="", flush=True)
+        for content in full_response:
+            safe_text = presidio_guardrail.process_chunk(content)
+            if safe_text:
+                print(safe_text, end="", flush=True)
+        remaining = presidio_guardrail.finalize()
+        if remaining:
+            print(remaining, end="", flush=True)
+        print("\n")
+
+        messages.append({"role": "assistant", "content": full_response})
 
 
 main()
 
-#TODO:
+# TODO:
 # ---------
 # Create a real-time streaming PII guardrail that redacts sensitive data as chunks arrive from the LLM.
 # Two approaches to compare:
