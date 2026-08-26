@@ -12,35 +12,49 @@ from t9_mcp_fundamentals.agent.mcp_clients.base import MCPClient
 class AgentMCPFundamentals:
     """Handles AI model interactions and integrates with MCP client"""
 
-    def __init__(self, api_key: str, model: str, tools: list[dict[str, Any]], mcp_client: MCPClient):
-        self.model=model
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        tools: list[dict[str, Any]],
+        mcp_client: MCPClient,
+    ):
+        self.model = model
         self.tools = tools
         self.mcp_client = mcp_client
         self.openai = AsyncOpenAI(api_key=api_key)
 
     def _collect_tool_calls(self, tool_deltas):
         """Convert streaming tool call deltas to complete tool calls"""
-        tool_dict = defaultdict(lambda: {"id": None, "function": {"arguments": "", "name": None}, "type": None})
+        tool_dict = defaultdict(
+            lambda: {
+                "id": None,
+                "function": {"arguments": "", "name": None},
+                "type": None,
+            }
+        )
 
         for delta in tool_deltas:
             idx = delta.index
-            if delta.id: tool_dict[idx]["id"] = delta.id
-            if delta.function.name: tool_dict[idx]["function"]["name"] = delta.function.name
-            if delta.function.arguments: tool_dict[idx]["function"]["arguments"] += delta.function.arguments
-            if delta.type: tool_dict[idx]["type"] = delta.type
+            if delta.id:
+                tool_dict[idx]["id"] = delta.id
+            if delta.function.name:
+                tool_dict[idx]["function"]["name"] = delta.function.name
+            if delta.function.arguments:
+                tool_dict[idx]["function"]["arguments"] += delta.function.arguments
+            if delta.type:
+                tool_dict[idx]["type"] = delta.type
 
         return list(tool_dict.values())
 
     async def _stream_response(self, messages: list[Message]) -> Message:
         """Stream OpenAI response and handle tool calls"""
         stream = await self.openai.chat.completions.create(
-            **{
-                "model": self.model,
-                "messages": [msg.to_dict() for msg in messages],
-                "tools": self.tools,
-                "temperature": 0.0,
-                "stream": True
-            }
+            model=self.model,
+            messages=[msg.to_dict() for msg in messages],
+            tools=self.tools,
+            temperature=0.0,
+            stream=True,
         )
 
         content = ""
@@ -63,7 +77,7 @@ class AgentMCPFundamentals:
         return Message(
             role=Role.ASSISTANT,
             content=content,
-            tool_calls=self._collect_tool_calls(tool_deltas) if tool_deltas else []
+            tool_calls=self._collect_tool_calls(tool_deltas) if tool_deltas else [],
         )
 
     async def get_response(self, messages: list[Message]) -> Message:
@@ -79,9 +93,27 @@ class AgentMCPFundamentals:
 
     async def _call_tools(self, ai_message: Message, messages: list[Message]):
         """Execute tool calls using MCP client"""
-        #TODO:
-        # 1. Iterate through tool_calls
-        # 2. Get tool name and tool arguments (arguments is a JSON, don't forget about that)
-        # 3. Wrap into try/except block and call mcp_client tool call. If succeed then add tool message (don't forget
-        #    about tool call id), otherwise add tool message with error message (it kind of fallback strategy).
-        raise NotImplementedError()
+        for tool_call in ai_message.tool_calls or []:
+            tool_call_id = tool_call["id"]
+            tool_name = tool_call["function"]["name"]
+            tool_args = json.loads(tool_call["function"]["arguments"])
+
+            try:
+                result = await self.mcp_client.call_tool(tool_name, tool_args)
+                messages.append(
+                    Message(
+                        role=Role.TOOL,
+                        content=str(result),
+                        tool_call_id=tool_call_id,
+                        name=tool_name,
+                    )
+                )
+            except Exception as e:
+                messages.append(
+                    Message(
+                        role=Role.TOOL,
+                        content=f"Error while calling tool {tool_name}: {e}",
+                        tool_call_id=tool_call_id,
+                        name=tool_name,
+                    )
+                )
