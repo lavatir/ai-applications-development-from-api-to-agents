@@ -4,25 +4,30 @@ from t10_mcp_advanced.mcp_server.tools.users.base import BaseUserServiceTool
 
 
 class DeleteUserTool(BaseUserServiceTool):
-
     @property
     def name(self) -> str:
-        #TODO: Provide tool name as `delete_users`
-        raise NotImplementedError()
+        return "delete_user"
 
     @property
     def description(self) -> str:
-        #TODO: Provide description of this tool
-        raise NotImplementedError()
+        return "deletes a user from the UserService"
 
     @property
     def input_schema(self) -> dict[str, Any]:
-        #TODO:
-        # Provide tool params Schema. This tool applies user `id` (number) as a parameter and it is required
-        raise NotImplementedError()
+        return {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "number",
+                    "description": "The numeric id of the user to delete.",
+                },
+            },
+            "required": ["id"],
+        }
 
     async def execute(self, arguments: dict[str, Any]) -> str:
-        #TODO:
-        # 1. Get int `id` from arguments
-        # 2. Call user_client delete_user and return its results (it is async, don't forget to await)
-        raise NotImplementedError()
+        try:
+            user_id = int(arguments["id"])
+            return self._user_client.delete_user(user_id)
+        except Exception as e:
+            return f"Error while deleting the user: {e!s}"
