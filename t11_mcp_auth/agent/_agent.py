@@ -6,13 +6,13 @@ from openai import AsyncOpenAI
 
 from commons.models.message import Message
 from commons.models.role import Role
-from t9_mcp_fundamentals.agent.mcp_clients.base import MCPClient
+from t11_mcp_auth.agent.mcp_clients._base import T11MCPClient
 
 
 class AgentMCPAuth:
     """Handles AI model interactions and integrates with MCP client"""
 
-    def __init__(self, api_key: str, model: str, tools: list[dict[str, Any]], mcp_client: MCPClient):
+    def __init__(self, api_key: str, model: str, tools: list[dict[str, Any]], mcp_client: T11MCPClient):
         self.model=model
         self.tools = tools
         self.mcp_client = mcp_client
