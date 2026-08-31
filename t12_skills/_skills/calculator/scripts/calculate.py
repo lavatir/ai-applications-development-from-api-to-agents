@@ -5,22 +5,42 @@ No eval() on raw strings — only whitelisted operations are allowed.
 Usage: python calculate.py "<expression>"
 """
 
-import sys
-import math
 import ast
+import math
+import sys
 
 SAFE_NAMES = {
-    "sqrt": math.sqrt, "abs": abs, "round": round,
-    "floor": math.floor, "ceil": math.ceil,
-    "log": math.log, "log10": math.log10,
-    "sin": math.sin, "cos": math.cos, "tan": math.tan,
-    "pi": math.pi, "e": math.e,
+    "sqrt": math.sqrt,
+    "abs": abs,
+    "round": round,
+    "floor": math.floor,
+    "ceil": math.ceil,
+    "log": math.log,
+    "log10": math.log10,
+    "sin": math.sin,
+    "cos": math.cos,
+    "tan": math.tan,
+    "pi": math.pi,
+    "e": math.e,
 }
 
 ALLOWED_NODES = (
-    ast.Expression, ast.BinOp, ast.UnaryOp, ast.Num, ast.Constant,
-    ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,
-    ast.FloorDiv, ast.USub, ast.UAdd, ast.Call, ast.Name, ast.Load,
+    ast.Expression,
+    ast.BinOp,
+    ast.UnaryOp,
+    ast.Constant,
+    ast.Add,
+    ast.Sub,
+    ast.Mult,
+    ast.Div,
+    ast.Pow,
+    ast.Mod,
+    ast.FloorDiv,
+    ast.USub,
+    ast.UAdd,
+    ast.Call,
+    ast.Name,
+    ast.Load,
 )
 
 
@@ -40,12 +60,16 @@ def safe_eval(expression: str) -> float:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python calculate.py \"<expression>\"")
+        print('Usage: python calculate.py "<expression>"')
         sys.exit(1)
     expression = " ".join(sys.argv[1:])
     try:
         result = safe_eval(expression)
-        fmt = str(int(result)) if isinstance(result, float) and result.is_integer() else f"{result:.10g}"
+        fmt = (
+            str(int(result))
+            if isinstance(result, float) and result.is_integer()
+            else f"{result:.10g}"
+        )
         print(f"Expression: {expression}")
         print(f"Result: {fmt}")
     except ZeroDivisionError:

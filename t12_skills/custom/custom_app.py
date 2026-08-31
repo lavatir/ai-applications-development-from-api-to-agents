@@ -2,20 +2,23 @@ import asyncio
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from commons.constants import OPENAI_API_KEY
 from commons.models.message import Message
 from commons.models.role import Role
 from t12_skills.custom.agent import T12Agent
-from t12_skills.custom.tools.base import BaseTool
 from t12_skills.custom.models import SkillMetadata, load_skills
-from t12_skills.custom.tools.py_interpreter.python_code_interpreter_tool import PythonCodeInterpreterTool
+from t12_skills.custom.tools.base import BaseTool
+from t12_skills.custom.tools.py_interpreter.python_code_interpreter_tool import (
+    PythonCodeInterpreterTool,
+)
 from t12_skills.custom.tools.skills.read_skill_tool import ReadSkillTool
 
 SKILLS_DIR = Path(__file__).parent / "_skills"
 MCP_URL = "http://localhost:8050/mcp"
 MCP_TOOL_NAME = "execute_code"
+
 
 def _build_available_skills_xml(skills: list[SkillMetadata]) -> str:
     root = ET.Element("available_skills")
@@ -66,15 +69,27 @@ async def main():
     system_prompt = build_system_prompt(skills)
     print(f"📄 System prompt: \n {system_prompt}")
 
-    #TODO:
-    # - Initialize the messages list with a SYSTEM message containing the system_prompt
-    # - Build the tools list:
-    #   - ReadSkillTool (pass SKILLS_DIR)
-    #   - PythonCodeInterpreterTool (use async factory .create() with MCP_URL, MCP_TOOL_NAME, SKILLS_DIR)
-    # - Create a T12Agent with an OpenAI client, model "gpt-5.2", and the tools list
-    # - Run a chat loop: read user input, break on "exit",
-    #   append USER message, call agent.chat_completion, append the returned assistant message
-    raise NotImplementedError()
+    messages: list[Message] = [Message(role=Role.SYSTEM, content=system_prompt)]
+
+    tools: list[BaseTool] = [
+        ReadSkillTool(SKILLS_DIR),
+        await PythonCodeInterpreterTool.create(MCP_URL, MCP_TOOL_NAME, SKILLS_DIR),
+    ]
+
+    agent = T12Agent(
+        client=AsyncOpenAI(api_key=OPENAI_API_KEY), model="gpt-5.2", tools=tools
+    )
+
+    print("\nAgent ready. Type your query or 'exit' to quit.\n")
+    while True:
+        user_input = input("You: ").strip()
+        if user_input.lower() == "exit":
+            break
+
+        messages.append(Message(role=Role.USER, content=user_input))
+
+        ai_message = await agent.chat_completion(messages)
+        messages.append(ai_message)
 
 
 if __name__ == "__main__":
