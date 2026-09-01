@@ -8,7 +8,9 @@ from t12_skills.custom.tools.base import BaseTool
 
 
 class T12Agent:
-    def __init__(self, client: AsyncOpenAI, model: str, tools: list[BaseTool] | None = None):
+    def __init__(
+        self, client: AsyncOpenAI, model: str, tools: list[BaseTool] | None = None
+    ):
         self._client = client
         self._model = model
         self._tools: dict[str, BaseTool] = {tool.name: tool for tool in tools or []}

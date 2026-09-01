@@ -1,8 +1,8 @@
 import logging
 
-from presidio_analyzer import AnalyzerEngine, PatternRecognizer, Pattern
-from presidio_analyzer.predefined_recognizers import CreditCardRecognizer
+from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer
 from presidio_analyzer.nlp_engine import NlpEngineProvider
+from presidio_analyzer.predefined_recognizers import CreditCardRecognizer
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
 
@@ -41,7 +41,7 @@ class _UMSCreditCardRecognizer(CreditCardRecognizer):
         on failure.  UMS generates fake card numbers that never pass Luhn, so
         we return None here to preserve the original pattern score unchanged.
         """
-        return None
+        return
 
     def __init__(self):
         ums_patterns = [
@@ -163,15 +163,23 @@ class UMSDataGuardrail:
 
     @staticmethod
     def _build_analyzer() -> AnalyzerEngine:
-        #TODO:
-        # - Create NlpEngineProvider with _NLP_CONFIG, build AnalyzerEngine from it
-        # - Register _UMSCreditCardRecognizer and _UMSSalaryRecognizer
-        # - Return analyzer
-        raise NotImplementedError()
+        provider = NlpEngineProvider(nlp_configuration=_NLP_CONFIG)
+        analyzer = AnalyzerEngine(nlp_engine=provider.create_engine())
+
+        analyzer.registry.add_recognizer(_UMSCreditCardRecognizer())
+        analyzer.registry.add_recognizer(_UMSSalaryRecognizer())
+
+        return analyzer
 
     def redact(self, text: str) -> str:
         """Redact credit card and salary data via Presidio analyze → anonymize pipeline."""
-        #TODO:
-        # - Analyze text for _ENTITIES; return text unchanged if no results
-        # - Anonymize with _OPERATORS, return anonymized.text
-        raise NotImplementedError()
+        results = self.analyzer.analyze(
+            text=text, entities=self._ENTITIES, language="en"
+        )
+        if not results:
+            return text
+
+        anonymized = self.anonymizer.anonymize(
+            text=text, analyzer_results=results, operators=self._OPERATORS
+        )
+        return anonymized.text
